@@ -1,11 +1,7 @@
-# main_ap_fast.py -- MicroPython control server for VacuumBot (ESP32) in AP mode (low-latency)
 import uasyncio as asyncio
 from machine import Pin, PWM
 import network
 
-# --------------------
-# CONFIGURATION
-# --------------------
 AP_SSID = "GeauxSweep"
 AP_PASSWORD = "12345678"
 
@@ -14,22 +10,17 @@ LEFT_MOTOR_PIN = 21
 RIGHT_MOTOR_PIN = 19
 SERVO_PIN = 23
 
-PWM_FREQ = 50  # 50Hz standard servo PWM
+PWM_FREQ = 50
 
-# Hobby servo pulse widths (ms)
 PULSE_FULL_REV = 1.0
 PULSE_STOP = 1.5
 PULSE_FULL_FWD = 2.0
 
-# Spray servo pulse widths and times
 SPRAY_FORWARD_MS = 2.0
 SPRAY_REVERSE_MS = 1.0
 SPRAY_FORWARD_TIME = 1500   # ms
 SPRAY_REVERSE_TIME = 1200   # ms
 
-# --------------------
-# Utility
-# --------------------
 def pulse_ms_to_duty(p_ms):
     period_ms = 1000.0 / PWM_FREQ
     duty_frac = p_ms / period_ms
@@ -41,18 +32,14 @@ D_FULL_FWD = pulse_ms_to_duty(PULSE_FULL_FWD)
 D_SPRAY_FWD = pulse_ms_to_duty(SPRAY_FORWARD_MS)
 D_SPRAY_REV = pulse_ms_to_duty(SPRAY_REVERSE_MS)
 
-# --------------------
-# Initialize hardware
-# --------------------
+
 pwm_left = PWM(Pin(LEFT_MOTOR_PIN), freq=PWM_FREQ)
 pwm_right = PWM(Pin(RIGHT_MOTOR_PIN), freq=PWM_FREQ)
 servo_pwm = PWM(Pin(SERVO_PIN), freq=PWM_FREQ)
 
-# Shared command state
 current_command = {"cmd": "stop"}
 cmd_lock = asyncio.Lock()
 
-# Simple query parser for MicroPython
 def parse_query(path):
     cmd = "stop"
     if "?" in path:
@@ -76,9 +63,6 @@ def setup_ap():
     ap.config(essid=AP_SSID, password=AP_PASSWORD)
     print("AP running at:", ap.ifconfig())
 
-# --------------------
-# Motor Control
-# --------------------
 async def set_motors(cmd):
     if cmd == "forward":
         pwm_left.duty_u16(D_FULL_FWD)
@@ -96,9 +80,6 @@ async def set_motors(cmd):
         pwm_left.duty_u16(D_STOP)
         pwm_right.duty_u16(D_STOP)
 
-# --------------------
-# Spray Sequence (non-blocking)
-# --------------------
 async def do_spray():
     print("Spray triggered")
     await set_motors("stop")
@@ -110,9 +91,6 @@ async def do_spray():
     async with cmd_lock:
         current_command["cmd"] = "stop"
 
-# --------------------
-# Motor loop (fast)
-# --------------------
 async def motor_loop():
     last_cmd = None
     while True:
@@ -126,7 +104,7 @@ async def motor_loop():
                 await set_motors(cmd)
             last_cmd = cmd
 
-        await asyncio.sleep_ms(20)  # check commands every 20ms
+        await asyncio.sleep_ms(10)
 
 # --------------------
 # HTML Web UI
@@ -203,9 +181,7 @@ async def handle_client(reader, writer):
     except Exception as e:
         print("Client error:", e)
 
-# --------------------
-# Main
-# --------------------
+# Main code for the functions
 async def main():
     setup_ap()
     print("Starting motor loop")
