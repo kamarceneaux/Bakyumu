@@ -6,8 +6,8 @@ AP_SSID = "GeauxSweep"
 AP_PASSWORD = "12345678"
 
 # PWM pins
-LEFT_MOTOR_PIN = 21
-RIGHT_MOTOR_PIN = 19
+LEFT_MOTOR_PIN = 15
+RIGHT_MOTOR_PIN = 28
 SERVO_PIN = 23
 
 PWM_FREQ = 50
@@ -83,6 +83,7 @@ async def set_motors(cmd):
 async def do_spray():
     print("Spray triggered")
     await set_motors("stop")
+    print("Finished spray stopping.")
     servo_pwm.duty_u16(D_SPRAY_FWD)
     await asyncio.sleep_ms(SPRAY_FORWARD_TIME)
     servo_pwm.duty_u16(D_SPRAY_REV)
