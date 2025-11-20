@@ -6,8 +6,8 @@ AP_SSID = "GeauxSweep"
 AP_PASSWORD = "12345678"
 
 # PWM pins
-LEFT_MOTOR_PIN = 15
-RIGHT_MOTOR_PIN = 28
+RIGHT_MOTOR_PIN = 4
+LEFT_MOTOR_PIN = 28
 SERVO_PIN = 23
 
 PWM_FREQ = 50
@@ -26,9 +26,9 @@ def pulse_ms_to_duty(p_ms):
     duty_frac = p_ms / period_ms
     return int(duty_frac * 65535)
 
-D_FULL_REV = pulse_ms_to_duty(PULSE_FULL_REV)
+D_FULL_REV = pulse_ms_to_duty(1.05)
 D_STOP = pulse_ms_to_duty(PULSE_STOP)
-D_FULL_FWD = pulse_ms_to_duty(PULSE_FULL_FWD)
+D_FULL_FWD = pulse_ms_to_duty(1.95)
 D_SPRAY_FWD = pulse_ms_to_duty(SPRAY_FORWARD_MS)
 D_SPRAY_REV = pulse_ms_to_duty(SPRAY_REVERSE_MS)
 
@@ -38,7 +38,7 @@ pwm_right = PWM(Pin(RIGHT_MOTOR_PIN), freq=PWM_FREQ)
 servo_pwm = PWM(Pin(SERVO_PIN), freq=PWM_FREQ)
 
 current_command = {"cmd": "stop"}
-cmd_lock = asyncio.Lock()
+cmd_lock = None
 
 def parse_query(path):
     cmd = "stop"
@@ -182,13 +182,59 @@ async def handle_client(reader, writer):
     except Exception as e:
         print("Client error:", e)
 
-# Main code for the functions
+async def shutdown(server):
+    print("\nShutting down...")
+
+    if server:
+        server.close()
+        await server.wait_closed()
+        print("Server closed.")
+
+    pwm_left.duty_u16(D_STOP)
+    pwm_right.duty_u16(D_STOP)
+    servo_pwm.duty_u16(D_STOP)
+    print("Motors stopped.")
+
+
 async def main():
+    global cmd_lock
+    # Initialize the lock HERE, inside the active loop
+    cmd_lock = asyncio.Lock()
+
     setup_ap()
     print("Starting motor loop")
-    asyncio.create_task(motor_loop())
-    server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
-    print("Server running on port 80")
-    await server.wait_closed()
 
-asyncio.run(main())
+    # Create the tasks
+    motor_task = asyncio.create_task(motor_loop())
+
+    # Start server
+    print("Server running on port 80")
+    server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
+
+    try:
+        while True:
+            await asyncio.sleep(1)
+
+    except asyncio.CancelledError:
+        pass
+
+    finally:
+        # This runs whether the code crashes or you press Stop
+        await shutdown(server)
+
+
+# Run the main loop with a keyboard interrupt catcher
+try:
+    asyncio.run(main())
+except KeyboardInterrupt:
+    # This catches the PyCharm "Stop" button
+    print("Interrupted by User")
+
+    # Optional: Hard reset if it still hangs often
+    # import machine
+    # machine.reset()
+except Exception as e:
+    print("Unexpected error:", e)
+finally:
+    # Final safety net to ensure Asyncio state is cleared
+    asyncio.new_event_loop()
