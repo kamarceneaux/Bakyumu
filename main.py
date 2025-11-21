@@ -52,6 +52,7 @@ current_command = {"cmd": "stop"}
 cmd_lock = None
 
 def parse_query(path):
+    # this should never fail but just incase
     cmd = "stop"
     if "?" in path:
         try:
@@ -64,10 +65,6 @@ def parse_query(path):
             pass
     return cmd
 
-
-# --------------------
-# WiFi Access Point
-# --------------------
 def setup_ap():
     ap = network.WLAN(network.AP_IF)
     ap.active(True)
@@ -118,43 +115,40 @@ async def motor_loop():
 
         await asyncio.sleep_ms(10)
 
-# --------------------
-# HTML Web UI
-# --------------------
 INDEX_HTML = """
 <!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>VacuumBot Remote</title>
-<style>
-body { font-family:sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px; }
-.row { display:flex; gap:10px; margin:8px; }
-button { padding:12px 20px; font-size:18px; }
-#status { margin-top:15px; font-size:18px; }
-</style>
-</head>
-<body>
-<h2>VacuumBot Remote</h2>
-<div class="row">
-<button onclick="sendCmd('forward')">Forward</button>
-<button onclick="sendCmd('back')">Backward</button>
-</div>
-<div class="row">
-<button onclick="sendCmd('turn_left')">Turn Left</button>
-<button onclick="sendCmd('turn_right')">Turn Right</button>
-</div>
-<div class="row">
-<button onclick="sendCmd('stop')">Stop</button>
-<button onclick="sendCmd('spray')">Spray</button>
-</div>
-<div id="status">Status: idle</div>
-<script>
-function sendCmd(cmd){
-  fetch(`/cmd?c=${cmd}`).then(()=>{document.getElementById('status').innerText="Status: "+cmd});
-}
-</script>
-</body>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>VacuumBot Remote</title>
+        <style>
+            body { font-family:sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px; }
+            .row { display:flex; gap:10px; margin:8px; }
+            button { padding:12px 20px; font-size:18px; }
+            #status { margin-top:15px; font-size:18px; }
+        </style>
+    </head>
+    <body>
+        <h2>VacuumBot Remote</h2>
+        <div class="row">
+            <button onclick="sendCmd('forward')">Forward</button>
+            <button onclick="sendCmd('back')">Backward</button>
+        </div>
+        <div class="row">
+            <button onclick="sendCmd('turn_left')">Turn Left</button>
+            <button onclick="sendCmd('turn_right')">Turn Right</button>
+        </div>
+        <div class="row">
+            <button onclick="sendCmd('stop')">Stop</button>
+            <button onclick="sendCmd('spray')">Spray</button>
+        </div>
+        <div id="status">Status: idle</div>
+        <script>
+            function sendCmd(cmd){
+              fetch(`/cmd?c=${cmd}`).then(()=>{document.getElementById('status').innerText="Status: "+cmd});
+            }
+        </script>
+    </body>
 </html>
 """
 
@@ -176,7 +170,6 @@ async def handle_client(reader, writer):
             response = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n" + INDEX_HTML
             await writer.awrite(response)
 
-        # Handle lightweight command
         elif path.startswith("/cmd"):
             cmd = parse_query(path)
             async with cmd_lock:
@@ -198,7 +191,7 @@ async def shutdown(server):
         await server.wait_closed()
         print("Server closed.")
 
-    # Properly deactivate the AP
+    # Properly deactivate the wifi
     ap = network.WLAN(network.AP_IF)
     ap.active(False)
     print("AP deactivated.")
@@ -230,7 +223,6 @@ async def main():
     setup_ap()
     print("Starting motor loop")
 
-    # Create the tasks
     motor_task = asyncio.create_task(motor_loop())
 
     print("Server running on port 80")
