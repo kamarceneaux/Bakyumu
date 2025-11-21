@@ -1,37 +1,48 @@
 import uasyncio as asyncio
 from machine import Pin, PWM
 import network
+import machine
 
 AP_SSID = "GeauxSweep"
 AP_PASSWORD = "12345678"
 
 # PWM pins
-RIGHT_MOTOR_PIN = 4
-LEFT_MOTOR_PIN = 28
+RIGHT_MOTOR_PIN = 28
+LEFT_MOTOR_PIN = 22
 SERVO_PIN = 23
 
 PWM_FREQ = 50
 
-PULSE_FULL_REV = 1.0
-PULSE_STOP = 1.5
-PULSE_FULL_FWD = 2.0
+# Pulse Run
+PULSE_FULL_REV = 1.7
+PULSE_STOP_MS = 1.48
+PULSE_FULL_FWD = 1.3
 
-SPRAY_FORWARD_MS = 2.0
-SPRAY_REVERSE_MS = 1.0
-SPRAY_FORWARD_TIME = 1500   # ms
-SPRAY_REVERSE_TIME = 1200   # ms
+
+# For the turning
+PULSE_TURN_MAX = 1.0
+PULSE_TURN_HALF = 1.75
+
+SPRAY_FORWARD_MS = 1.75
+SPRAY_REVERSE_MS = 1.35
+SPRAY_FORWARD_TIME = 1500
+SPRAY_REVERSE_TIME = 1200
 
 def pulse_ms_to_duty(p_ms):
     period_ms = 1000.0 / PWM_FREQ
     duty_frac = p_ms / period_ms
     return int(duty_frac * 65535)
 
-D_FULL_REV = pulse_ms_to_duty(1.05)
-D_STOP = pulse_ms_to_duty(PULSE_STOP)
-D_FULL_FWD = pulse_ms_to_duty(1.95)
+D_FULL_REV = pulse_ms_to_duty(PULSE_FULL_REV)
+D_STOP = pulse_ms_to_duty(PULSE_STOP_MS)
+D_FULL_FWD = pulse_ms_to_duty(PULSE_FULL_FWD)
+
+# TURN
+D_FULL_TURN = pulse_ms_to_duty(PULSE_TURN_MAX)
+D_HALF_TURN = pulse_ms_to_duty(PULSE_TURN_HALF)
+
 D_SPRAY_FWD = pulse_ms_to_duty(SPRAY_FORWARD_MS)
 D_SPRAY_REV = pulse_ms_to_duty(SPRAY_REVERSE_MS)
-
 
 pwm_left = PWM(Pin(LEFT_MOTOR_PIN), freq=PWM_FREQ)
 pwm_right = PWM(Pin(RIGHT_MOTOR_PIN), freq=PWM_FREQ)
@@ -65,17 +76,17 @@ def setup_ap():
 
 async def set_motors(cmd):
     if cmd == "forward":
+        pwm_right.duty_u16(D_FULL_REV)
         pwm_left.duty_u16(D_FULL_FWD)
-        pwm_right.duty_u16(D_FULL_FWD)
     elif cmd == "back":
-        pwm_left.duty_u16(D_FULL_REV)
-        pwm_right.duty_u16(D_FULL_REV)
-    elif cmd == "turn_left":
-        pwm_left.duty_u16(D_FULL_REV)
         pwm_right.duty_u16(D_FULL_FWD)
+        pwm_left.duty_u16(D_FULL_REV)
+    elif cmd == "turn_left":
+        pwm_left.duty_u16(D_FULL_TURN)
+        pwm_right.duty_u16(D_HALF_TURN)
     elif cmd == "turn_right":
-        pwm_left.duty_u16(D_FULL_FWD)
-        pwm_right.duty_u16(D_FULL_REV)
+        pwm_left.duty_u16(D_HALF_TURN)
+        pwm_right.duty_u16(D_FULL_TURN)
     elif cmd == "stop":
         pwm_left.duty_u16(D_STOP)
         pwm_right.duty_u16(D_STOP)
@@ -147,9 +158,6 @@ function sendCmd(cmd){
 </html>
 """
 
-# --------------------
-# HTTP Server
-# --------------------
 async def handle_client(reader, writer):
     try:
         req_line = await reader.readline()
@@ -190,16 +198,34 @@ async def shutdown(server):
         await server.wait_closed()
         print("Server closed.")
 
+    # Properly deactivate the AP
+    ap = network.WLAN(network.AP_IF)
+    ap.active(False)
+    print("AP deactivated.")
+
     pwm_left.duty_u16(D_STOP)
     pwm_right.duty_u16(D_STOP)
     servo_pwm.duty_u16(D_STOP)
-    print("Motors stopped.")
+    pwm_left.deinit()
+    pwm_right.deinit()
+    servo_pwm.deinit()
+    print("Motors stopped and deinitialized.")
+
+async def cleanup_network():
+    try:
+        ap = network.WLAN(network.AP_IF)
+        ap.active(False)
+        await asyncio.sleep_ms(100)
+    except:
+        pass
 
 
 async def main():
     global cmd_lock
-    # Initialize the lock HERE, inside the active loop
     cmd_lock = asyncio.Lock()
+
+    # cleanup the previous wifi conenction
+    await cleanup_network()
 
     setup_ap()
     print("Starting motor loop")
@@ -207,7 +233,6 @@ async def main():
     # Create the tasks
     motor_task = asyncio.create_task(motor_loop())
 
-    # Start server
     print("Server running on port 80")
     server = await asyncio.start_server(handle_client, "0.0.0.0", 80)
 
@@ -219,22 +244,18 @@ async def main():
         pass
 
     finally:
-        # This runs whether the code crashes or you press Stop
         await shutdown(server)
 
 
-# Run the main loop with a keyboard interrupt catcher
 try:
     asyncio.run(main())
 except KeyboardInterrupt:
-    # This catches the PyCharm "Stop" button
+    asyncio.new_event_loop()
     print("Interrupted by User")
-
-    # Optional: Hard reset if it still hangs often
-    # import machine
-    # machine.reset()
 except Exception as e:
     print("Unexpected error:", e)
 finally:
-    # Final safety net to ensure Asyncio state is cleared
-    asyncio.new_event_loop()
+    ap = network.WLAN(network.AP_IF)
+    ap.active(False)
+    print("Performing soft reset...")
+    machine.soft_reset()
