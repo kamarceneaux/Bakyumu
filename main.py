@@ -14,9 +14,9 @@ SERVO_PIN = 23
 PWM_FREQ = 50
 
 # Pulse Run
-PULSE_FULL_REV = 1.7
+PULSE_FULL_REV = 1.57
 PULSE_STOP_MS = 1.48
-PULSE_FULL_FWD = 1.3
+PULSE_FULL_FWD = 1.43
 
 # For the turning
 PULSE_TURN_MAX = 1.0
@@ -128,7 +128,7 @@ INDEX_HTML = """
         </style>
     </head>
     <body>
-        <h2>VacuumBot Remote</h2>
+        <h2>Bakyumu Control</h2>
         <div class="row">
             <button onclick="sendCmd('forward')">Forward</button>
             <button onclick="sendCmd('back')">Backward</button>
@@ -142,9 +142,12 @@ INDEX_HTML = """
             <button onclick="sendCmd('spray')">Spray</button>
         </div>
         <div id="status">Status: idle</div>
+        <p></p>
         <script>
             function sendCmd(cmd){
-              fetch(`/cmd?c=${cmd}`).then(()=>{document.getElementById('status').innerText="Status: "+cmd});
+              fetch(`/cmd?c=${cmd}`).then(()=>{
+                  document.getElementById('status').innerText="Status: "+cmd
+              });
             }
         </script>
     </body>
