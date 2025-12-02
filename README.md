@@ -2,7 +2,7 @@
 Bakyumu is designed to be a remote controlled, robotic vaccuum cleaner. This project was built alongside two other group members.
 
 ## Demo Video
-![Video(https://youtu.be/aGsKar0hvW8?si=Aq0gujNZ_TaIrHKy)](https://youtu.be/aGsKar0hvW8?si=Aq0gujNZ_TaIrHKy)
+[![Watch the video](https://img.youtube.com/vi/aGsKar0hvW8/0.jpg)](https://youtu.be/aGsKar0hvW8?si=Aq0gujNZ_TaIrHKy)
 
 ## Project Goal
 A remote-controlled cleaning robot with a simple user
